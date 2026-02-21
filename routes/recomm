@@ -1,0 +1,104 @@
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+
+// Simple AI recommendation logic based on voltage and appliance type
+const getRecommendation = (appliance, voltage) => {
+  const recommendations = {
+    'refrigerator': {
+      low: 'Your refrigerator is running efficiently. Keep it well-ventilated and avoid opening the door frequently.',
+      normal: 'Normal voltage detected. Ensure the fridge is not overloaded and the door seals are working properly.',
+      high: 'High voltage detected! Check if the fridge compressor is running continuously. It might need maintenance or the door might be left open.'
+    },
+    'ac': {
+      low: 'Low voltage - AC may not cool effectively. Consider using a voltage stabilizer.',
+      normal: 'Your AC is running at optimal voltage. Regular filter cleaning will maintain efficiency.',
+      high: 'High voltage can damage your AC! Consider using a voltage regulator and check for refrigerant leaks.'
+    },
+    'washing machine': {
+      low: 'Low voltage may affect motor performance. Wait for stable voltage before using.',
+      normal: 'Your washing machine is running well. Use appropriate load sizes for best efficiency.',
+      high: 'High voltage can damage the motor. Avoid using the machine during peak hours.'
+    },
+    'microwave': {
+      low: 'Low voltage may increase cooking time. Consider using on stable power.',
+      normal: 'Microwave is operating normally. Use appropriate power settings for different foods.',
+      high: 'High voltage detected! Be careful as this can damage the microwave and create safety hazards.'
+    },
+    'default': {
+      low: 'Low voltage detected. This may affect appliance performance. Consider checking your electrical connections.',
+      normal: 'Voltage is within normal range. Your appliances should operate efficiently.',
+      high: 'High voltage detected! This can damage appliances. Consider consulting an electrician.'
+    }
+  };
+
+  let voltageLevel = 'normal';
+  if (voltage < 200) voltageLevel = 'low';
+  else if (voltage > 240) voltageLevel = 'high';
+
+  const applianceLower = appliance.toLowerCase();
+  let applianceKey = 'default';
+  
+  if (applianceLower.includes('fridge') || applianceLower.includes('refrigerator')) applianceKey = 'refrigerator';
+  else if (applianceLower.includes('ac') || applianceLower.includes('air conditioner') || applianceLower.includes('cool')) applianceKey = 'ac';
+  else if (applianceLower.includes('wash') || applianceLower.includes('laundry')) applianceKey = 'washing machine';
+  else if (applianceLower.includes('micro') || applianceLower.includes('microwave')) applianceKey = 'microwave';
+
+  return recommendations[applianceKey][voltageLevel];
+};
+
+// POST /api/recommend - Get AI recommendation based on appliance and voltage
+router.post('/recommend', async (req, res) => {
+  try {
+    const { appliance, voltage } = req.body;
+
+    if (!appliance || voltage === undefined) {
+      return res.status(400).json({ message: 'Appliance name and voltage are required' });
+    }
+
+    const recommendation = getRecommendation(appliance, voltage);
+
+    res.json({
+      appliance,
+      voltage,
+      recommendation
+    });
+  } catch (error) {
+    console.error('Error getting recommendation:', error);
+    res.status(500).json({ message: 'Error getting recommendation', error: error.message });
+  }
+});
+
+// GET /api/environmental-impact/:userId - Get user's environmental impact
+router.get('/environmental-impact/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Calculate environmental impact based on energy saved
+    // Standard conversion factors:
+    // - 1 kWh saved = 0.4 kg of CO2 not emitted
+    // - 1 kWh saved = 0.2 kg of coal not burned
+    const energySaved = user.energySaved || 0;
+    const coalSaved = energySaved * 0.2; // kg
+    const co2Reduced = energySaved * 0.4; // kg
+
+    res.json({
+      energySaved,
+      coalSaved: coalSaved.toFixed(2),
+      co2Reduced: co2Reduced.toFixed(2),
+      message: energySaved > 0 
+        ? 'Great job! Your energy savings are making a positive impact on the environment.'
+        : 'Start saving energy to reduce your environmental footprint!'
+    });
+  } catch (error) {
+    console.error('Error fetching environmental impact:', error);
+    res.status(500).json({ message: 'Error fetching environmental impact', error: error.message });
+  }
+});
+
+module.exports = router;
